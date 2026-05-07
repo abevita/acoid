@@ -84,6 +84,10 @@ func ValidateLength(length int) error {
 // maps each remainder to an ID57 character. The caller is responsible for
 // supplying a digest produced by a deterministic hash function (e.g. BLAKE3).
 //
+// A nil or empty digest is treated as the integer zero and produces a
+// deterministic (all-'A') output. Callers that want to hash before encoding
+// should use [Generate] or [GenerateString] instead.
+//
 // Returns ErrUnsupportedLength if length is not 6, 8, 10, or 12.
 func FromDigest(digest []byte, length int) (string, error) {
 	if err := ValidateLength(length); err != nil {

@@ -1,6 +1,8 @@
 module github.com/abevita/acoid
 
-go 1.24
+go 1.22
+
+toolchain go1.24.5
 
 require lukechampine.com/blake3 v1.4.1
 

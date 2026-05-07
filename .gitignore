@@ -1,0 +1,20 @@
+# Binaries
+*.exe
+*.test
+*.out
+
+# Go workspace
+/vendor/
+go.work
+go.work.sum
+
+# Build output
+/bin/
+/dist/
+
+# Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
