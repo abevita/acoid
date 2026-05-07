@@ -1,0 +1,13 @@
+name: acoid
+description: Deterministic human-readable identifiers using BLAKE3 and the ID57 alphabet.
+version: 0.1.0
+repository: https://github.com/abevita/acoid
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+
+dev_dependencies:
+  test: ^1.24.0
+dependencies:
+  blake3_dart: ^1.0.0
