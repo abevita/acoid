@@ -2,38 +2,11 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "lang/rust"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "lang/rust"]
 
 jobs:
-  # ── Go ──────────────────────────────────────────────────────────────────────
-  test-go:
-    name: Test (Go ${{ matrix.go }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go: ["1.21", "1.22", "1.23", "1.24"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go }}
-
-      - name: Build
-        working-directory: go
-        run: go build ./...
-
-      - name: Test
-        working-directory: go
-        run: go test -race -count=1 ./...
-
-      - name: Vet
-        working-directory: go
-        run: go vet ./...
-
   # ── Rust ────────────────────────────────────────────────────────────────────
   test-rust:
     name: Test (Rust)
@@ -47,49 +20,3 @@ jobs:
       - name: Test
         working-directory: rust
         run: cargo test
-
-  # ── Node.js ─────────────────────────────────────────────────────────────────
-  test-node:
-    name: Test (Node.js ${{ matrix.node }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: ["18", "20", "22"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ matrix.node }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-
-      - name: Install dependencies
-        working-directory: node
-        run: npm ci
-
-      - name: Test
-        working-directory: node
-        run: node --test index.test.js
-
-  # ── Dart ────────────────────────────────────────────────────────────────────
-  test-dart:
-    name: Test (Dart ${{ matrix.dart }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        dart: ["3.0", "3.5", "stable"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Dart ${{ matrix.dart }}
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: ${{ matrix.dart }}
-
-      - name: Get dependencies
-        working-directory: dart
-        run: dart pub get
-
-      - name: Test
-        working-directory: dart
-        run: dart test
