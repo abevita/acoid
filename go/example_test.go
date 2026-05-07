@@ -3,7 +3,7 @@ package acoid_test
 import (
 	"fmt"
 
-	"github.com/abevita/acoid"
+	"github.com/abevita/acoid/go"
 )
 
 func ExampleGenerateString() {

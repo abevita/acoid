@@ -1,4 +1,4 @@
-module github.com/abevita/acoid
+module github.com/abevita/acoid/go
 
 go 1.22
 

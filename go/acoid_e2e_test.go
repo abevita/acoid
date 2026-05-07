@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abevita/acoid"
+	"github.com/abevita/acoid/go"
 )
 
 // stableVectors are deterministic reference values for known inputs.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abevita/acoid"
+	"github.com/abevita/acoid/go"
 )
 
 // ── Story 3: ValidateLength / IsSupportedLength ───────────────────────────────

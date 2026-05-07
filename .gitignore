@@ -4,7 +4,7 @@
 *.out
 
 # Go workspace
-/vendor/
+go/vendor/
 go.work
 go.work.sum
 

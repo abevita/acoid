@@ -50,13 +50,13 @@ All implementations produce these exact outputs for the same input:
 **Installation**
 
 ```sh
-go get github.com/abevita/acoid
+go get github.com/abevita/acoid/go
 ```
 
 **Quick start**
 
 ```go
-import "github.com/abevita/acoid"
+import "github.com/abevita/acoid/go"
 
 id, err := acoid.GenerateString("user:123", 6)
 id, err  = acoid.Generate([]byte("match:abc:1"), 10)
@@ -184,6 +184,8 @@ acoid.ErrLengthMismatch
 All errors wrap the sentinel, so `errors.Is` works:
 
 ```go
+import "github.com/abevita/acoid/go"
+
 _, err := acoid.Generate(input, 7)
 if errors.Is(err, acoid.ErrUnsupportedLength) { ... }
 ```
