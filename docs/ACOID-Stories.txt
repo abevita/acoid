@@ -1,0 +1,445 @@
+==================================================
+ACOID — USER STORIES
+v0.6.0
+==================================================
+SAFe-Aligned Stories for ACOID Identifier Standard
+
+==================================================
+
+STATUS
+--------------------------------------------------
+- Based on ACOID.txt v0.6.0 (finalized, locked) + full entity spec audit
+- Card / Conversation / Confirmation format
+- INVEST-compliant
+- Backlog-ready
+- All audited ACOID length conflicts resolved
+
+==================================================
+SOURCE OF TRUTH
+==================================================
+
+Primary domain contracts:
+- ACOID.txt          (ID system standard)
+- Entity specs       (per-entity field authority)
+
+Canonical identifier standard:
+
+acoid {
+ charset: ID57 (57 characters — Base62 minus 0, o, O, I, l)
+ case-sensitive: true
+ length: per-entity fixed length
+}
+
+Entity lengths (random ACOID, ID57):
+ user_id                    → 6     (USER.txt)
+ venue_id                   → 6     (VENUE.txt)
+ court_id                   → 6     (COURT.txt)
+ sport_id                   → 6     (SPORT.txt)
+ role_id                    → 6     (ROLE.txt)
+ rating_id                  → 6     (RATING.txt)
+ player_id                  → 8     (PLAYER.txt)
+ match_id                   → 10    (MATCH.txt)
+ pair_id                    → 10    (PAIR.txt)
+ result_id                  → 10    (RESULT.txt)
+ activity_id                → 10    (ACTIVITY.txt)
+ activity_participant_id    → 12    (PARTICIPANT.txt)
+ submission_id              → 12    (RESULT_SUBMISSION_LOG.txt)
+
+Non-ACOID deterministic IDs (BLAKE3, 128-bit):
+ revision_id        = blake3(match_id + ":" + revision_index, 128)   (REVISION.txt)
+ confirmation_id    = blake3(match_id + ":" + revision_id + ":" + player_id, 128) (CONFIRMATION.txt)
+
+SPEC STATUS
+--------------------------------------------------
+- ACOID entity lengths are now explicit across the audited entity specs.
+- revision_id and confirmation_id remain deterministic BLAKE3 IDs, not ACOID.
+- No remaining ACOID length conflicts were found in the audited set.
+
+Canonical invariants (ACOID):
+- MUST use only ID57 characters
+- MUST match exact length for entity type
+- MUST be case-sensitive
+- Invalid IDs MUST be rejected at input boundaries
+
+Canonical invariants (BLAKE3):
+- MUST use fixed field order and UTF-8 encoding
+- MUST use ":" separator
+- Output MUST be 128 bits
+- Deterministic: same inputs MUST always produce the same ID
+
+==================================================
+FEATURE
+==================================================
+
+Feature:
+ACOID Identifier System
+
+Feature goal:
+- provide human-safe, unambiguous identifiers across all canonical entities
+- enforce ID57 charset and per-entity length at every input boundary
+- support reliable generation with collision-safe retry semantics
+
+==================================================
+STORY 1
+==================================================
+
+Card
+--------------------------------------------------
+As a platform service,
+I want to generate a valid ACOID for a given entity type,
+so that new entities receive a unique, human-safe identifier on creation.
+
+Conversation
+--------------------------------------------------
+Scope:
+- random generation using ID57 charset
+- length driven by entity type (sport_id=6, player_id=8, activity_id=10, etc.)
+- generation is internal to the platform; callers do not choose the ID
+
+Questions already resolved by the domain spec:
+- charset is fixed: ABCDEFGHJKLMNPQRSTUVWXYZ + abcdefghijkmnpqrstuvwxyz + 123456789
+- removed characters: 0, o, O, I, l (visual ambiguity)
+- random generation is the recommended path (not hashing)
+- length is fixed per entity — MUST NOT be changed
+
+API surface:
+- internal call: acoid.Generate(entityType) → string
+- not exposed as a public REST endpoint
+
+Confirmation
+--------------------------------------------------
+Confirmed lengths (no conflict):
+1. Given entity type "user" | "venue" | "court" | "sport" | "role" | "rating", when Generate is called, then the result is exactly 6 characters.
+2. Given entity type "player", when Generate is called, then the result is exactly 8 characters.
+3. Given entity type "activity" | "match" | "pair" | "result", when Generate is called, then the result is exactly 10 characters.
+4. Given entity type "activity_participant" | "submission", when Generate is called, then the result is exactly 12 characters.
+5. Given any generated ID, when its characters are inspected, then each character is in the ID57 charset.
+6. Given any generated ID, when checked against the removed set {0, o, O, I, l}, then none of those characters appear.
+7. Given entity type "revision" or "confirmation", when an ID is requested, then the system routes to deterministic BLAKE3 generation, not ACOID Generate.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 2
+==================================================
+
+Conversation
+--------------------------------------------------
+Scope:
+- validate charset (ID57 only)
+- validate length for the declared entity type
+- validate case sensitivity (ID57 is case-sensitive)
+- reject at input boundary — do NOT allow invalid IDs to reach domain logic
+
+Questions already resolved by the domain spec:
+- validation regex per entity type:
+    sport_id:    ^[A-HJ-NP-Za-km-np-z1-9]{6}$
+    player_id:   ^[A-HJ-NP-Za-km-np-z1-9]{8}$
+    activity_id: ^[A-HJ-NP-Za-km-np-z1-9]{10}$
+    match_id:    ^[A-HJ-NP-Za-km-np-z1-9]{10}$
+- general ID57: ^[A-HJ-NP-Za-km-np-z1-9]+$
+
+API surface:
+- internal call: acoid.Validate(id, entityType) → error
+- applied in L0 data schema & validation layer
+
+Confirmation
+--------------------------------------------------
+1. Given a 6-char ID57 string for sport_id, when Validate is called, then no error is returned.
+2. Given a string containing "0" (zero), when Validate is called for any entity type, then a validation error is returned.
+3. Given a string containing "O" (capital letter O), when Validate is called, then a validation error is returned.
+4. Given a string containing "I" (capital letter I), when Validate is called, then a validation error is returned.
+5. Given a string containing "l" (lowercase L), when Validate is called, then a validation error is returned.
+6. Given a sport_id with 5 characters (wrong length), when Validate is called, then a validation error is returned.
+7. Given a sport_id with 7 characters (wrong length), when Validate is called, then a validation error is returned.
+8. Given a player_id with 6 characters (sport_id length), when Validate is called for player, then a validation error is returned.
+9. Given an empty string, when Validate is called, then a validation error is returned.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 3
+==================================================
+
+Card
+--------------------------------------------------
+As a platform service,
+I want collision-safe ACOID generation with automatic retry,
+so that rare ID conflicts do not corrupt the entity store.
+
+Conversation
+--------------------------------------------------
+Scope:
+- detect collision at persistence layer (document already exists with generated ID)
+- retry generation and re-attempt write
+- do not surface collision to the caller; resolve transparently
+
+Questions already resolved by the domain spec:
+- retry on conflict is the specified collision strategy
+- do not increase length (length is fixed by protocol)
+- collision probability is low given ID57 entropy:
+    6-char ID57:  57^6  ≈  34 billion combinations
+    8-char ID57:  57^8  ≈  111 trillion combinations
+    10-char ID57: 57^10 ≈  362 quadrillion combinations
+    12-char ID57: 57^12 ≈  1.2 quintillion combinations
+- BLAKE3 IDs (revision_id, confirmation_id) are deterministic:
+    same inputs → same ID → collision = duplicate input, not a retry scenario
+    BLAKE3 entities are NOT in scope for this story
+
+Open questions for team conversation:
+- maximum retry limit before returning error?
+  (suggested: 5 retries, then return 500 with log)
+- should collision events be logged for observability?
+  (suggested: yes, log at WARN level with entity type and attempt count)
+
+API surface:
+- internal: transparent to callers
+- persistence adapter retries internally
+- applies to: user_id, venue_id, court_id, sport_id, role_id, rating_id,
+              player_id, match_id, pair_id, result_id, activity_id,
+              activity_participant_id, submission_id
+
+Confirmation
+--------------------------------------------------
+1. Given a collision on first attempt, when the persistence adapter retries, then a new ACOID is generated and the write is reattempted.
+2. Given a successful write on retry, when the caller receives the response, then it contains only the final persisted ACOID with no indication of retry.
+3. Given retries exceeding the configured maximum, when all attempts fail, then the operation returns an internal error and logs the collision count.
+4. Given a collision event, when the system observability log is inspected, then a WARN entry is present with entity type and attempt number.
+5. Given a BLAKE3 entity (revision_id, confirmation_id), when an ID is generated, then retry logic is NOT applied — a collision means duplicate input, which is an invariant violation.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 4
+==================================================
+
+Card
+--------------------------------------------------
+As a developer integrating with the RAZ platform,
+I want the ACOID validation error response to identify which rule was violated,
+so that I can correct invalid requests quickly.
+
+Conversation
+--------------------------------------------------
+Scope:
+- error response quality for ACOID validation failures at the API boundary
+- separate from the validation logic itself (Story 2)
+
+Questions already resolved by the domain spec:
+- three distinct violation classes:
+    1. invalid charset (forbidden character detected)
+    2. wrong length (does not match entity-type requirement)
+    3. empty or missing ID
+
+Open questions for team conversation:
+- should the error response name the offending character?
+  (suggested: yes for charset violations, aids debugging)
+- single field error or aggregated?
+  (suggested: single — ACOID is a scalar, one violation sufficient)
+
+API surface:
+- error payloads on any endpoint that accepts an ACOID path or body parameter
+
+Confirmation
+--------------------------------------------------
+1. Given a sport_id containing a forbidden character, when the API is called, then the error response names the field (sport_id) and states the charset violation.
+2. Given a sport_id of wrong length, when the API is called, then the error response names the field and states the expected length.
+3. Given a missing sport_id, when the API is called, then the error response names the field as required.
+4. Given a valid ACOID, when the API is called, then no validation error is returned for the identifier field.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 5 — BLAKE3 DETERMINISTIC IDs
+==================================================
+
+Card
+--------------------------------------------------
+As a platform service,
+I want revision_id and confirmation_id computed deterministically via BLAKE3,
+so that the same inputs always produce the same ID and duplicates are detectable as invariant violations.
+
+Conversation
+--------------------------------------------------
+Scope:
+- revision_id:     blake3(match_id + ":" + revision_index, 128)
+- confirmation_id: blake3(match_id + ":" + revision_id + ":" + player_id, 128)
+- these are NOT ACOID-style random IDs
+- generation is part of the domain write path, not the ACOID generator
+
+Questions already resolved by the domain spec:
+- field order is fixed per spec
+- separator is ":" (required)
+- encoding is UTF-8 (required)
+- algorithm is BLAKE3 (required)
+- output length is 128 bits
+- a collision = duplicate input = invariant violation → return error, do NOT retry
+
+Open questions for team conversation:
+- how is the 128-bit BLAKE3 output encoded as a string? (hex? base64? ID57?)
+  (suggested: lowercase hex, 32 characters — standard, readable, unambiguous)
+- should confirmation_id be validated at read time or only at write time?
+  (suggested: write time only — stored value is immutable)
+
+API surface:
+- internal: deterministic.RevisionID(matchID, revisionIndex) → string
+- internal: deterministic.ConfirmationID(matchID, revisionID, playerID) → string
+- not exposed as a public REST endpoint
+
+Confirmation
+--------------------------------------------------
+1. Given match_id="abc123" and revision_index=1, when RevisionID is called twice with identical inputs, then both calls return the same string.
+2. Given match_id="abc123" and revision_index=2 (different index), when RevisionID is called, then the result differs from revision_index=1.
+3. Given match_id, revision_id, and player_id, when ConfirmationID is called twice with identical inputs, then both calls return the same string.
+4. Given different player_ids for the same match and revision, when ConfirmationID is called, then the results are different.
+5. Given any BLAKE3 ID, when its byte length is checked, then it is 128 bits (16 bytes).
+6. Given a collision at the persistence layer for a BLAKE3 entity, when the write is attempted, then the operation returns an invariant violation error, NOT a retry.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 6
+==================================================
+
+Card
+--------------------------------------------------
+As a developer,
+I want to verify that ACOID-based URLs and QR codes round-trip correctly,
+so that human-facing identifiers work reliably across input modes.
+
+Card
+--------------------------------------------------
+As a developer,
+I want to verify that ACOID-based URLs and QR codes round-trip correctly,
+so that human-facing identifiers work reliably across input modes.
+
+Conversation
+--------------------------------------------------
+Scope:
+- URL safety: no encoding required for ID57 characters
+- QR code readability: ID57 excludes confusable characters
+- manual input: ID57 is readable over phone / voice
+
+Questions already resolved by the domain spec:
+- ID57 is URL-safe by design (no /, +, =, or special chars)
+- ID57 is QR-friendly by design
+- no percent-encoding is needed for ACOID values in URL paths
+
+Open questions for team conversation:
+- test coverage path: unit tests sufficient, or integration test with actual QR scan?
+  (suggested: unit test + one manual QR smoke test per release)
+
+API surface:
+- path parameter handling: treat ACOID as opaque string, no encoding/decoding
+- example paths:
+    GET /sports/k9F3Lm
+    GET /players/mT9vW2Kq
+
+Confirmation
+--------------------------------------------------
+1. Given a sport_id in a URL path, when the server parses the path parameter, then the raw string is used without percent-decoding.
+2. Given a valid ID57 string, when placed in a URL, then no characters require percent-encoding.
+3. Given an ACOID passed as a URL path parameter and stored, when retrieved and returned in the response body, then the value is byte-for-byte identical to what was received.
+4. Given an ACOID containing only ID57 characters, when rendered as a QR code and scanned, then the decoded string matches the original (no ambiguous-character substitution possible).
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+SPIKE 1
+==================================================
+
+Card
+--------------------------------------------------
+As a spec author,
+I want to keep ACOID entity lengths synchronized across specs,
+so that implementation uses a single, unambiguous identifier contract.
+
+Conversation
+--------------------------------------------------
+Resolved in audit:
+- activity_id aligned to 10 across ACOID.txt, ACTIVITY.txt, MATCH.txt, and PARTICIPANT.txt
+- pair_id aligned to 10 across PAIR.txt and MATCH.txt references
+- result_id aligned to 10 in RESULT.txt
+- peer_rating rating_id aligned to ACOID, 6
+- peer_rating player_id and peer_id aligned to PLAYER.txt as ACOID, 8
+
+Time-box: 0.5 day review.
+
+Questions to answer:
+1. Are any newly added entity specs introducing a fresh ACOID length that must also be added to ACOID.txt?
+2. Are cross-entity references still aligned after future spec edits?
+3. Should this audit be codified as a documentation release checklist item?
+
+Output:
+- Updated specs remain aligned on ACOID lengths
+- This file remains current with the audited source of truth
+
+Confirmation
+--------------------------------------------------
+1. ACOID-referenced fields in audited specs match the entity contracts defined by ACOID.txt and the owning entity specs.
+2. Story 1 and Source of Truth remain aligned with the audited lengths.
+3. No unresolved ACOID length warnings remain in this file.
+
+==================================================
+SPIKE 2
+==================================================
+
+Card
+--------------------------------------------------
+As a platform architect,
+I want to decide whether to use random or deterministic (Blake3) ACOID generation,
+so that we choose the right strategy before the persistence layer is built.
+
+Conversation
+--------------------------------------------------
+The domain spec permits both:
+- Random: simpler, no input required, recommended default
+- Deterministic (Blake3 hash of input): reproducible, enables idempotent generation
+
+Random is simpler but requires collision retry.
+Deterministic hash avoids collision for the same input, but requires a stable input contract per entity type — and hash output must still be projected to ID57 alphabet and truncated to required length.
+
+Time-box: 1 day investigation.
+
+Questions to answer:
+1. Is there a use case where the caller must reproduce the same ID from the same inputs?
+2. Does the deterministic approach reduce collision frequency enough to remove retry logic?
+3. Is Blake3 available and approved in the Go dependency allowlist?
+
+Output:
+- decision documented as an ADR in docs/v0.6/
+- generation strategy selected and recorded before Story 1 implementation begins
+
+Confirmation
+--------------------------------------------------
+1. A written decision exists (ADR) stating which generation strategy is adopted and why.
+2. If random is chosen, Story 3 (collision retry) is in scope.
+3. If deterministic is chosen, the input contract per entity type is specified.
+
+==================================================
+END OF STORIES
+==================================================

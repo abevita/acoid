@@ -1,0 +1,374 @@
+==================================================
+ACOID — Go Package Implementation
+==================================================
+v0.6.0
+==================================================
+SAFe-Aligned Stories for a General-Purpose Go Package
+
+==================================================
+
+STATUS
+--------------------------------------------------
+- General-purpose package story set
+- Reusable across projects
+- Deterministic generation model
+- Card / Conversation / Confirmation format
+- INVEST-compliant
+- Backlog-ready
+
+==================================================
+PACKAGE CONTRACT
+==================================================
+
+Purpose:
+- provide a reusable Go package for generating and validating ACOID values
+- support deterministic code generation for any consuming Go project
+- keep the generation flow identical across libraries, services, CLIs, and applications
+
+Canonical flow:
+1. take input bytes 
+2. hash input with BLAKE3
+3. convert hash output into ID57 characters
+4. project to the requested length
+5. return the final ACOID string
+
+Supported lengths only:
+- 6
+- 8
+- 10
+- 12
+
+Out of scope:
+- storage adapters
+- HTTP/API boundary behavior
+- persistence collision handling
+- project-specific entity mappings
+
+==================================================
+SOURCE OF TRUTH
+==================================================
+
+Primary package rules:
+- alphabet: ID57
+- generator: BLAKE3
+- output type: ACOID string
+- supported lengths: 6, 8, 10, 12 only
+
+ID57 alphabet:
+ABCDEFGHJKLMNPQRSTUVWXYZ
+abcdefghijkmnpqrstuvwxyz
+123456789
+
+Removed characters:
+- 0
+- o
+- O
+- I
+- l
+
+Package invariants:
+- same input + same length MUST produce the same ACOID
+- different supported lengths MAY produce different outputs for the same input
+- unsupported lengths MUST return an error
+- output MUST contain only ID57 characters
+- output MUST match the requested supported length exactly
+
+==================================================
+FEATURE
+==================================================
+
+Feature:
+Reusable ACOID Go Package
+
+Feature goal:
+- let any Go project depend on one shared package
+- generate deterministic ACOID values using BLAKE3
+- expose a small, stable API for generation, conversion, and validation
+
+==================================================
+STORY 1
+==================================================
+
+Card
+--------------------------------------------------
+As a Go developer,
+I want a deterministic generator function,
+so that the same input always yields the same ACOID for a chosen supported length.
+
+Conversation
+--------------------------------------------------
+Scope:
+- hash arbitrary input bytes with BLAKE3
+- convert digest material into ID57 characters
+- return a string of the requested supported length
+
+Questions already resolved by the package contract:
+- generation flow is fixed: BLAKE3 -> ACOID(length)
+- generation is deterministic, not random
+- only lengths 6, 8, 10, and 12 are supported
+
+Suggested API surface:
+- Generate(input []byte, length int) (string, error)
+- MustGenerate(input []byte, length int) string
+
+Confirmation
+--------------------------------------------------
+1. Given the same input and length 6, when Generate is called twice, then both results are identical.
+2. Given the same input and length 8, when Generate is called twice, then both results are identical.
+3. Given the same input and length 10, when Generate is called twice, then both results are identical.
+4. Given the same input and length 12, when Generate is called twice, then both results are identical.
+5. Given different inputs and the same length, when Generate is called, then the outputs differ in normal operation.
+6. Given any generated output, when inspected, then every character belongs to the ID57 alphabet.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 2
+==================================================
+
+Card
+--------------------------------------------------
+As a Go developer,
+I want a conversion function from BLAKE3 digest bytes to ACOID,
+so that encoding logic is reusable independently from hashing.
+
+Conversation
+--------------------------------------------------
+Scope:
+- accept digest bytes
+- map digest material into the ID57 alphabet
+- emit a string of the requested supported length
+
+Questions already resolved by the package contract:
+- conversion output is always ID57
+- conversion is deterministic
+- conversion must support lengths 6, 8, 10, and 12
+- the exact digest-to-ID57 mapping algorithm is decided by Spike 1
+
+Suggested API surface:
+- FromDigest(digest []byte, length int) (string, error)
+
+Confirmation
+--------------------------------------------------
+1. Given the same digest and length, when FromDigest is called twice, then both outputs are identical.
+2. Given a valid digest and length 6, when FromDigest is called, then the output length is exactly 6.
+3. Given a valid digest and length 8, when FromDigest is called, then the output length is exactly 8.
+4. Given a valid digest and length 10, when FromDigest is called, then the output length is exactly 10.
+5. Given a valid digest and length 12, when FromDigest is called, then the output length is exactly 12.
+6. Given a converted output, when inspected, then it contains none of {0, o, O, I, l}.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 3
+==================================================
+
+Card
+--------------------------------------------------
+As a Go developer,
+I want strict supported-length validation,
+so that consumers cannot request invalid ACOID sizes.
+
+Conversation
+--------------------------------------------------
+Scope:
+- accept only 6, 8, 10, and 12
+- reject all other lengths
+- return explicit errors
+
+Questions already resolved by the package contract:
+- supported lengths are fixed
+- unsupported lengths are errors
+- package behavior must be explicit, not permissive
+
+Suggested API surface:
+- IsSupportedLength(length int) bool
+- ValidateLength(length int) error
+
+Confirmation
+--------------------------------------------------
+1. Given length 6, when ValidateLength is called, then no error is returned.
+2. Given length 8, when ValidateLength is called, then no error is returned.
+3. Given length 10, when ValidateLength is called, then no error is returned.
+4. Given length 12, when ValidateLength is called, then no error is returned.
+5. Given length 0, when ValidateLength is called, then an unsupported-length error is returned.
+6. Given length 7, when ValidateLength is called, then an unsupported-length error is returned.
+7. Given length 16, when ValidateLength is called, then an unsupported-length error is returned.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 4
+==================================================
+
+Card
+--------------------------------------------------
+As a Go developer,
+I want validation helpers for ACOID values,
+so that consuming projects can verify package outputs and external inputs consistently.
+
+Conversation
+--------------------------------------------------
+Scope:
+- validate ID57 charset
+- validate exact length
+- validate supported-length policy when requested
+
+Questions already resolved by the package contract:
+- validation is case-sensitive
+- validation rejects removed characters
+- validation is independent from hashing
+- Validate must reject unsupported lengths (delegates to ValidateLength internally)
+
+Suggested API surface:
+- Validate(value string, length int) error
+- IsValid(value string, length int) bool
+
+Confirmation
+--------------------------------------------------
+1. Given a valid 6-character ACOID, when Validate is called with length 6, then no error is returned.
+2. Given a valid 8-character ACOID, when Validate is called with length 8, then no error is returned.
+3. Given a value containing 0, when Validate is called, then an invalid-charset error is returned.
+4. Given a value containing O, when Validate is called, then an invalid-charset error is returned.
+5. Given a value containing I, when Validate is called, then an invalid-charset error is returned.
+6. Given a value containing l, when Validate is called, then an invalid-charset error is returned.
+7. Given a value whose character count does not match the requested length, when Validate is called, then a length-mismatch error is returned.
+8. Given an unsupported length (e.g., 7), when Validate is called, then an unsupported-length error is returned.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 5
+==================================================
+
+Card
+--------------------------------------------------
+As a Go developer,
+I want package APIs that work with strings and bytes,
+so that consuming projects can integrate the library without adapter boilerplate.
+
+Conversation
+--------------------------------------------------
+Scope:
+- support raw byte input
+- support string input convenience helpers
+- keep the package surface minimal and predictable
+
+Questions already resolved by the package contract:
+- bytes are the canonical hashing input
+- strings are convenience wrappers over bytes
+- behavior must stay deterministic across both entry points
+
+Suggested API surface:
+- Generate(input []byte, length int) (string, error)
+- GenerateString(input string, length int) (string, error)
+
+Confirmation
+--------------------------------------------------
+1. Given the same logical input as []byte and string, when Generate and GenerateString are called with the same length, then the outputs are identical.
+2. Given an empty byte slice, when Generate is called with a supported length, then behavior is deterministic and documented.
+3. Given an empty string, when GenerateString is called with a supported length, then behavior matches the byte-based API for empty input.
+4. Given any supported length, when the string convenience API is used, then the output is still valid ID57.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+STORY 6
+==================================================
+
+Card
+--------------------------------------------------
+As a consuming project maintainer,
+I want package documentation and examples,
+so that other projects can adopt the package correctly.
+
+Conversation
+--------------------------------------------------
+Scope:
+- README-style usage examples
+- explain deterministic flow
+- document supported lengths
+- document failure behavior for unsupported lengths and invalid values
+
+Questions already resolved by the package contract:
+- the package is intended for reuse by other Go projects
+- the flow is fixed: BLAKE3 -> ACOID(length)
+- supported lengths are fixed: 6, 8, 10, 12
+
+Suggested documentation examples:
+- GenerateString("user:123", 6)
+- Generate([]byte("match:abc:1"), 10)
+- Validate("k9F3Lm", 6)
+
+Confirmation
+--------------------------------------------------
+1. Given the package documentation, when a developer reads it, then the deterministic generation flow is clearly described.
+2. Given the package documentation, when a developer checks supported lengths, then only 6, 8, 10, and 12 are listed.
+3. Given the package documentation, when a developer checks error behavior, then unsupported-length handling is described explicitly.
+4. Given the package documentation, when a developer copies an example, then it matches the public API.
+
+INVEST note:
+- Independent: yes
+- Valuable: yes
+- Small: yes
+- Testable: yes
+
+==================================================
+SPIKE 1
+==================================================
+
+Card
+--------------------------------------------------
+As a package maintainer,
+I want to choose and document the exact digest-to-ID57 projection algorithm,
+so that all consumers get byte-for-byte identical ACOID outputs.
+
+Conversation
+--------------------------------------------------
+Decision needed:
+- how BLAKE3 digest bytes are projected into ID57 characters
+- whether projection uses modulo mapping, big-integer base conversion, or another fixed method
+- how additional digest material is derived if more characters are needed than one digest projection conveniently supplies
+  - Note: BLAKE3 supports variable-length output (XOF mode); requesting exactly the required byte count may eliminate multi-round derivation
+- output must be deterministic
+- output must use only ID57 characters
+- output length must be exactly one of 6, 8, 10, 12
+- algorithm must be documented clearly enough for reimplementation if needed
+
+Time-box: 0.5 day review.
+
+Output:
+- one documented projection algorithm
+- one reference example with stable input and output
+- package documentation updated to describe the algorithm at a high level
+
+Confirmation
+--------------------------------------------------
+1. A written decision exists describing the digest-to-ACOID projection algorithm.
+2. A stable example input produces a stable example output.
+3. Different Go projects using the same package version receive identical results.
+
+==================================================
+END OF STORIES
+==================================================
+
